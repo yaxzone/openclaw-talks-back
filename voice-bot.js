@@ -200,19 +200,44 @@ async function run() {
             const heard = pendingTranscriptions.join(' ');
             pendingTranscriptions = [];
             
-            let response = `I heard you say: ${heard}`;
+            const lower = heard.toLowerCase().trim();
+            let response = null;
             
-            const lower = heard.toLowerCase();
-            if (lower.includes('hello') || lower.includes('hi ') || lower === 'hi') {
+            // Skip empty or very short transcriptions
+            if (lower.length < 3) {
+                continue;
+            }
+            
+            // Pattern matching for responses
+            if (lower.includes('hello') || lower.includes('hi ') || lower === 'hi' || lower.includes('hey enki')) {
                 response = "Hello! Nice to hear from you!";
             } else if (lower.includes('how are you')) {
                 response = "I'm doing great! It's amazing that we can talk like this.";
             } else if (lower.includes('test')) {
                 response = "Test received loud and clear!";
-            } else if (lower.includes('your name') || lower.includes("who are you")) {
+            } else if (lower.includes('your name') || lower.includes('who are you')) {
                 response = "I am Enki, god of wisdom and water. I'm your AI assistant.";
             } else if (lower.includes('thank')) {
                 response = "You're welcome!";
+            } else if (lower.includes('goodbye') || lower.includes('bye') || lower.includes('see you')) {
+                response = "Goodbye! Talk to you later!";
+            } else if (lower.includes('what can you do') || lower.includes('what do you do')) {
+                response = "I can listen and talk! Right now I'm a voice interface. Soon I'll be connected to a real brain.";
+            } else if (lower.includes('weather')) {
+                response = "I don't have weather data yet, but I could learn!";
+            } else if (lower.includes('time')) {
+                const now = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                response = `It's ${now}.`;
+            } else if (lower.includes('love you') || lower.includes('you are awesome') || lower.includes('you\'re awesome')) {
+                response = "Aw, thanks! You're pretty great yourself.";
+            } else if (lower.includes('?')) {
+                response = "That's a good question. I'm still learning, so I don't have a full answer yet.";
+            }
+            
+            // Only respond if we matched something
+            if (!response) {
+                console.log(`[${new Date().toISOString()}] Heard but no response pattern: "${heard}"`);
+                continue;
             }
             
             console.log(`[${new Date().toISOString()}] Responding: "${response}"`);
