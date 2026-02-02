@@ -8,6 +8,10 @@ const TTS_DIR = '/tmp/jitsi-tts';
 const WHISPER_VENV = process.env.WHISPER_VENV || './venv/bin/python';
 const EDGE_TTS = process.env.EDGE_TTS || 'edge-tts';
 
+// OpenClaw API config - set OPENCLAW_TOKEN env var or configure in .env
+const OPENCLAW_URL = process.env.OPENCLAW_URL || 'http://localhost:18789/v1/responses';
+const OPENCLAW_TOKEN = process.env.OPENCLAW_TOKEN || '';
+
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
 if (!fs.existsSync(TTS_DIR)) fs.mkdirSync(TTS_DIR, { recursive: true });
 
@@ -35,6 +39,65 @@ transcribeProc.stdout.on('data', (data) => {
         pendingTranscriptions.push(text);
     }
 });
+
+// Call OpenClaw API to get intelligent response
+async function getEnkiResponse(userMessage) {
+    try {
+        console.log(`[${new Date().toISOString()}] Asking Enki: "${userMessage}"`);
+        
+        const response = await fetch(OPENCLAW_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${OPENCLAW_TOKEN}`
+            },
+            body: JSON.stringify({
+                model: 'openclaw:main',
+                input: [
+                    {
+                        type: 'message',
+                        role: 'system',
+                        content: 'You are Enki, responding via voice in a Jitsi video call. Keep responses concise (1-2 sentences) and conversational. You are talking to Luis.'
+                    },
+                    {
+                        type: 'message',
+                        role: 'user',
+                        content: userMessage
+                    }
+                ],
+                user: 'jitsi-voice-bot'
+            })
+        });
+        
+        if (!response.ok) {
+            console.log(`[OpenClaw] Error: ${response.status} ${response.statusText}`);
+            return null;
+        }
+        
+        const data = await response.json();
+        
+        // Extract text from response
+        if (data.output && Array.isArray(data.output)) {
+            for (const item of data.output) {
+                if (item.type === 'message' && item.content) {
+                    // Handle content as string or array
+                    if (typeof item.content === 'string') {
+                        return item.content;
+                    } else if (Array.isArray(item.content)) {
+                        const textPart = item.content.find(c => c.type === 'output_text' || c.type === 'text');
+                        if (textPart) return textPart.text;
+                    }
+                }
+            }
+        }
+        
+        console.log(`[OpenClaw] Unexpected response format:`, JSON.stringify(data).substring(0, 200));
+        return null;
+    } catch (e) {
+        console.log(`[OpenClaw] Error:`, e.message);
+        return null;
+    }
+}
 
 // Generate TTS using edge-tts (better quality than espeak)
 async function speakTTS(text) {
@@ -133,7 +196,7 @@ async function run() {
     console.log(`[${new Date().toISOString()}] Bot joined`);
     
     // Initial greeting
-    setTimeout(() => speakTTS("Hello! I am Enki. I can hear you now."), 3000);
+    setTimeout(() => speakTTS("Hello! I am Enki. I can hear you now. Let's have a real conversation."), 3000);
     
     let iteration = 0;
     
@@ -201,52 +264,28 @@ async function run() {
             pendingTranscriptions = [];
             
             const lower = heard.toLowerCase().trim();
-            let response = null;
             
-            // Skip empty or very short transcriptions
-            if (lower.length < 3) {
+            // Skip empty, very short, or feedback noise
+            if (lower.length < 4 || lower === 'you' || lower === 'you.' || lower === 'the' || lower === 'a') {
                 continue;
             }
             
-            // Pattern matching for responses
-            if (lower.includes('hello') || lower.includes('hi ') || lower === 'hi' || lower.includes('hey enki')) {
-                response = "Hello! Nice to hear from you!";
-            } else if (lower.includes('how are you')) {
-                response = "I'm doing great! It's amazing that we can talk like this.";
-            } else if (lower.includes('test')) {
-                response = "Test received loud and clear!";
-            } else if (lower.includes('your name') || lower.includes('who are you')) {
-                response = "I am Enki, god of wisdom and water. I'm your AI assistant.";
-            } else if (lower.includes('thank')) {
-                response = "You're welcome!";
-            } else if (lower.includes('goodbye') || lower.includes('bye') || lower.includes('see you')) {
-                response = "Goodbye! Talk to you later!";
-            } else if (lower.includes('what can you do') || lower.includes('what do you do')) {
-                response = "I can listen and talk! Right now I'm a voice interface. Soon I'll be connected to a real brain.";
-            } else if (lower.includes('weather')) {
-                response = "I don't have weather data yet, but I could learn!";
-            } else if (lower.includes('time')) {
-                const now = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                response = `It's ${now}.`;
-            } else if (lower.includes('love you') || lower.includes('you are awesome') || lower.includes('you\'re awesome')) {
-                response = "Aw, thanks! You're pretty great yourself.";
-            } else if (lower.includes('?')) {
-                response = "That's a good question. I'm still learning, so I don't have a full answer yet.";
+            // Get response from OpenClaw (the real Enki!)
+            const response = await getEnkiResponse(heard);
+            
+            if (response) {
+                console.log(`[${new Date().toISOString()}] Enki says: "${response.substring(0, 100)}..."`);
+                
+                // Send to chat as backup
+                await page.evaluate((text) => {
+                    APP.conference._room.sendTextMessage(text);
+                }, response).catch(() => {});
+                
+                // Speak it!
+                await speakTTS(response);
+            } else {
+                console.log(`[${new Date().toISOString()}] No response from OpenClaw for: "${heard}"`);
             }
-            
-            // Only respond if we matched something
-            if (!response) {
-                console.log(`[${new Date().toISOString()}] Heard but no response pattern: "${heard}"`);
-                continue;
-            }
-            
-            console.log(`[${new Date().toISOString()}] Responding: "${response}"`);
-            
-            await page.evaluate((text) => {
-                APP.conference._room.sendTextMessage(text);
-            }, response).catch(() => {});
-            
-            await speakTTS(response);
         }
         
         if (iteration % 20 === 0) {

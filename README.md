@@ -101,6 +101,32 @@ Environment variables:
 | `ROOM` | `Enki` | Jitsi room name to join |
 | `WHISPER_VENV` | `./venv/bin/python` | Path to Python with faster-whisper |
 | `EDGE_TTS` | `edge-tts` | Path to edge-tts binary |
+| `OPENCLAW_URL` | `http://localhost:18789/v1/responses` | OpenClaw API endpoint |
+| `OPENCLAW_TOKEN` | (required) | OpenClaw gateway auth token |
+
+## OpenClaw Integration
+
+The bot connects to OpenClaw's API for intelligent responses. This means you get a **real AI conversation**, not canned responses.
+
+1. Enable the responses endpoint in OpenClaw config:
+```json5
+{
+  gateway: {
+    http: {
+      endpoints: {
+        responses: { enabled: true }
+      }
+    }
+  }
+}
+```
+
+2. Set your token:
+```bash
+export OPENCLAW_TOKEN="your-gateway-token"
+```
+
+3. Run the bot — it will now route speech to OpenClaw and speak the AI's response!
 
 ## Architecture
 
