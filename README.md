@@ -156,12 +156,37 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed technical documentation incl
 | Memory (Chrome) | ~250MB |
 | Memory (Whisper) | ~200MB |
 
+## Running as a Service
+
+For persistent operation (auto-start, auto-restart on crash):
+
+```bash
+# Copy service file
+sudo cp jitsi-voice-bot.service /etc/systemd/system/
+
+# Edit the service file to set your OPENCLAW_TOKEN
+sudo nano /etc/systemd/system/jitsi-voice-bot.service
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable jitsi-voice-bot
+sudo systemctl start jitsi-voice-bot
+
+# View logs
+sudo journalctl -u jitsi-voice-bot -f
+```
+
+The bot will now:
+- Auto-start on system boot
+- Auto-restart if it crashes
+- Always be waiting in the configured room
+
 ## Future Ideas
 
 - [ ] Wake word detection ("Hey Enki")
 - [ ] Streaming STT for lower latency
-- [ ] Integration with LLM for intelligent responses
-- [ ] Systemd service for persistence
+- [x] ~~Integration with LLM for intelligent responses~~ ✅ Done via OpenClaw API
+- [x] ~~Systemd service for persistence~~ ✅ Done
 - [ ] Multiple room support
 
 ## License

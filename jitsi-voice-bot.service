@@ -1,0 +1,20 @@
+[Unit]
+Description=Enki Jitsi Voice Bot
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=lyax
+WorkingDirectory=/home/lyax/projects/jitsi-bot
+Environment=OPENCLAW_TOKEN=YOUR_TOKEN_HERE
+Environment=ROOM=Enki
+Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
+Environment=PATH=/home/lyax/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=EDGE_TTS=/home/lyax/.local/bin/edge-tts
+ExecStart=/usr/bin/node voice-bot.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
